@@ -55,13 +55,12 @@ def analyze_stock(stock_data, cpi_data, expected_inflation):
     model_arima = auto_arima(y_lr, seasonal=False, suppress_warnings=True)
     
     # Train GARCH model
-model_garch = arch.arch_model(y_lr, vol='Garch', p=1, q=1)
-results_garch = model_garch.fit(disp='off')
+    model_garch = arch.arch_model(y_lr, vol='Garch', p=1, q=1)
+    results_garch = model_garch.fit(disp='off')
 
-# Predict future volatility based on GARCH
-forecast_garch = results_garch.forecast(horizon=1)
-future_volatility_garch = forecast_garch.variance.iloc[-1, :].values[0]
-st.write(f"Predicted Volatility for Future Inflation (GARCH): {future_volatility_garch}")
+    # Predict future prices based on Linear Regression
+    future_prices_lr = model_lr.predict([[expected_inflation]])
+    st.write(f"Predicted Price Change for Future Inflation (Linear Regression): {future_prices_lr[0]}")
 
     # Predict future prices based on ARIMA
     future_prices_arima = model_arima.predict(1).iloc[0]  # 1 is the number of steps to forecast
@@ -69,14 +68,19 @@ st.write(f"Predicted Volatility for Future Inflation (GARCH): {future_volatility
 
     # Predict future volatility based on GARCH
     forecast_garch = results_garch.forecast(horizon=1)
-    future_volatility_garch = forecast_garch.variance.iloc[-1, 0]
+    future_volatility_garch = forecast_garch.variance.iloc[-1, :].values[0]
     st.write(f"Predicted Volatility for Future Inflation (GARCH): {future_volatility_garch}")
+
+    # Predict future stock price using GARCH
+    last_observed_price = y_lr.iloc[-1]
+    future_price_garch = last_observed_price * (1 + future_volatility_garch)
+    st.write(f"Predicted Stock Price for Future Inflation (GARCH): {future_price_garch}")
 
     # Display the latest actual price
     latest_actual_price = merged_data['Close'].iloc[-1]
     st.write(f"Latest Actual Price for {stock_name}: {latest_actual_price}")
 
-    return correlation_close_cpi, future_prices_lr[0], future_prices_arima, latest_actual_price, future_volatility_garch
+    return correlation_close_cpi, future_prices_lr[0], future_prices_arima, latest_actual_price, future_volatility_garch, future_price_garch
 
 # Streamlit UI
 st.title("Stock-CPI Correlation Analysis with Expected Inflation and Price Prediction")
@@ -106,6 +110,7 @@ if train_model_button:
     future_prices_arima_list = []
     latest_actual_prices = []
     future_volatility_garch_list = []
+    future_price_garch_list = []
     stock_names = []
 
     for stock_file in stock_files:
@@ -116,13 +121,14 @@ if train_model_button:
         # Filter stock data based on selected tenure
         selected_stock_data = selected_stock_data[(selected_stock_data['Date'] >= start_date) & (selected_stock_data['Date'] <= end_date)]
         
-        correlation_close_cpi, future_price_lr, future_price_arima, latest_actual_price, future_volatility_garch = analyze_stock(selected_stock_data, cpi_data, expected_inflation)
+        correlation_close_cpi, future_price_lr, future_price_arima, latest_actual_price, future_volatility_garch, future_price_garch = analyze_stock(selected_stock_data, cpi_data, expected_inflation)
         
         correlations.append(correlation_close_cpi)
         future_prices_lr_list.append(future_price_lr)
         future_prices_arima_list.append(future_price_arima)
         latest_actual_prices.append(latest_actual_price)
         future_volatility_garch_list.append(future_volatility_garch)
+        future_price_garch_list.append(future_price_garch)
         stock_names.append(stock_file)
 
     # Display overall summary in a table
@@ -132,7 +138,8 @@ if train_model_button:
         'Predicted Price Change (Linear Regression)': future_prices_lr_list,
         'Predicted Price Change (ARIMA)': future_prices_arima_list,
         'Latest Actual Price': latest_actual_prices,
-        'Predicted Volatility (GARCH)': future_volatility_garch_list
+        'Predicted Volatility (GARCH)': future_volatility_garch_list,
+        'Predicted Stock Price (GARCH)': future_price_garch_list
     }
     summary_df = pd.DataFrame(summary_data)
     st.write("\nCorrelation and Price Prediction Summary:")
