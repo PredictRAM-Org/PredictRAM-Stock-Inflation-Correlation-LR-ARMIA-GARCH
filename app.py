@@ -55,12 +55,13 @@ def analyze_stock(stock_data, cpi_data, expected_inflation):
     model_arima = auto_arima(y_lr, seasonal=False, suppress_warnings=True)
     
     # Train GARCH model
-    model_garch = arch.arch_model(y_lr, vol='Garch', p=1, q=1)
-    results_garch = model_garch.fit(disp='off')
+model_garch = arch.arch_model(y_lr, vol='Garch', p=1, q=1)
+results_garch = model_garch.fit(disp='off')
 
-    # Predict future prices based on Linear Regression
-    future_prices_lr = model_lr.predict([[expected_inflation]])
-    st.write(f"Predicted Price Change for Future Inflation (Linear Regression): {future_prices_lr[0]}")
+# Predict future volatility based on GARCH
+forecast_garch = results_garch.forecast(horizon=1)
+future_volatility_garch = forecast_garch.variance.iloc[-1, :].values[0]
+st.write(f"Predicted Volatility for Future Inflation (GARCH): {future_volatility_garch}")
 
     # Predict future prices based on ARIMA
     future_prices_arima = model_arima.predict(1).iloc[0]  # 1 is the number of steps to forecast
